@@ -313,6 +313,14 @@
       color: #a1a1aa;
     }
 
+    .platform-logo {
+      height: 16px;
+      width: auto;
+      vertical-align: middle;
+      margin-left: 5px;
+      opacity: 0.8;
+    }
+
     .modal-overlay {
       display: none;
       position: fixed;
@@ -505,6 +513,30 @@
         this.isEditing = false;
         this.showingSettings = false;
         this.showingAddShow = false;
+        
+        // Streaming service logos
+        this.platformLogos = {
+          'Netflix': 'https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg',
+          'HBO Max': 'https://upload.wikimedia.org/wikipedia/commons/1/17/HBO_Max_Logo.svg',
+          'HBO': 'https://upload.wikimedia.org/wikipedia/commons/d/de/HBO_logo.svg',
+          'Apple TV': 'https://upload.wikimedia.org/wikipedia/commons/2/28/Apple_TV_Plus_Logo.svg',
+          'Apple TV+': 'https://upload.wikimedia.org/wikipedia/commons/2/28/Apple_TV_Plus_Logo.svg',
+          'Disney+': 'https://upload.wikimedia.org/wikipedia/commons/3/3e/Disney%2B_logo.svg',
+          'Disney Plus': 'https://upload.wikimedia.org/wikipedia/commons/3/3e/Disney%2B_logo.svg',
+          'Amazon Prime': 'https://upload.wikimedia.org/wikipedia/commons/1/11/Amazon_Prime_Video_logo.svg',
+          'Prime Video': 'https://upload.wikimedia.org/wikipedia/commons/1/11/Amazon_Prime_Video_logo.svg',
+          'Hulu': 'https://upload.wikimedia.org/wikipedia/commons/e/e4/Hulu_Logo.svg',
+          'Paramount+': 'https://upload.wikimedia.org/wikipedia/commons/a/a5/Paramount_Plus.svg',
+          'Paramount Plus': 'https://upload.wikimedia.org/wikipedia/commons/a/a5/Paramount_Plus.svg',
+          'Peacock': 'https://upload.wikimedia.org/wikipedia/commons/d/d3/NBCUniversal_Peacock_Logo.svg',
+          'AMC+': 'https://upload.wikimedia.org/wikipedia/commons/3/34/AMC%2B_logo.svg',
+          'Showtime': 'https://upload.wikimedia.org/wikipedia/commons/2/22/Showtime.svg',
+          'Starz': 'https://upload.wikimedia.org/wikipedia/commons/e/e2/Starz_2016.svg',
+          'Max': 'https://upload.wikimedia.org/wikipedia/commons/4/4a/Max_logo.svg',
+          'YouTube': 'https://upload.wikimedia.org/wikipedia/commons/b/b8/YouTube_Logo_2017.svg',
+          'Crunchyroll': 'https://upload.wikimedia.org/wikipedia/commons/f/f6/Crunchyroll_Logo.svg'
+        };
+        
         this.loadShows();
         this.render();
       }
@@ -743,6 +775,22 @@
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       }
 
+      getPlatformLogo(platform) {
+        if (!platform) return null;
+        // Check for exact match
+        if (this.platformLogos[platform]) {
+          return this.platformLogos[platform];
+        }
+        // Check for partial match (case insensitive)
+        const platformLower = platform.toLowerCase();
+        for (const [key, logo] of Object.entries(this.platformLogos)) {
+          if (key.toLowerCase().includes(platformLower) || platformLower.includes(key.toLowerCase())) {
+            return logo;
+          }
+        }
+        return null;
+      }
+
       updateShow(id, updates) {
         const index = this.shows.findIndex(s => s.id === id);
         if (index !== -1) {
@@ -979,7 +1027,7 @@
                       <span class="show-meta-text meta-season">S${show.season}</span>
                       <span class="show-meta-text meta-year"> • ${show.year}</span>
                       ${this.activeView === 'diary' && show.dateCompleted 
-                        ? `<span class="show-meta-text meta-date"> • ${this.formatDate(show.dateCompleted)}</span>` 
+                        ? `<span class="show-meta-text meta-date"> • ${this.formatDate(show.dateCompleted)}</span>${this.getPlatformLogo(show.platform) ? `<img src="${this.getPlatformLogo(show.platform)}" alt="${show.platform}" class="platform-logo">` : ''}` 
                         : ''}
                     </div>
                   </div>
