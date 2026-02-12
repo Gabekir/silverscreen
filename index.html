@@ -700,7 +700,10 @@
         // Streaming service logos
         this.platformLogos = {
           'Netflix': 'https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg',
-          'HBO Max': 'https://upload.wikimedia.org/wikipedia/commons/1/17/HBO_Max_Logo.svg',
+          'HBO Max': {
+            light: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBmaWxsPSIjMDAwIiBkPSJNMzAyLjEgMjU2YzAtMzguMy0zMS4xLTY5LjQtNjkuNC02OS40SDgxLjZ2MTM4LjdoMTUxLjFjMzguMyAwIDY5LjQtMzEuMSA2OS40LTY5LjN6bTAtMTE1LjJjMC0zOC4zLTMxLjEtNjkuNC02OS40LTY5LjRIODEuNnYxMzguN2gxNTEuMWMzOC4zIDAgNjkuNC0zMS4xIDY5LjQtNjkuM3pNMzQ4LjcgMjU2YzAtNjQuMS01Mi0xMTYuMS0xMTYuMS0xMTYuMUg4MS42djIzMi4yaDAgMTUxLjFjNjQuMSAwIDExNi4xLTUyIDExNi4xLTExNi4xek00MzAuMyAyNTZjMCA5Mi42LTc1LjEgMTY3LjctMTY3LjcgMTY3LjdIODEuNnYtMzM1LjRoMTgxYzkyLjYgMCAxNjcuNyA3NS4xIDE2Ny43IDE2Ny43eiIvPjwvc3ZnPg==',
+            dark: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBmaWxsPSIjZmZmIiBkPSJNMzAyLjEgMjU2YzAtMzguMy0zMS4xLTY5LjQtNjkuNC02OS40SDgxLjZ2MTM4LjdoMTUxLjFjMzguMyAwIDY5LjQtMzEuMSA2OS40LTY5LjN6bTAtMTE1LjJjMC0zOC4zLTMxLjEtNjkuNC02OS40LTY5LjRIODEuNnYxMzguN2gxNTEuMWMzOC4zIDAgNjkuNC0zMS4xIDY5LjQtNjkuM3pNMzQ4LjcgMjU2YzAtNjQuMS01Mi0xMTYuMS0xMTYuMS0xMTYuMUg4MS42djIzMi4yaDAgMTUxLjFjNjQuMSAwIDExNi4xLTUyIDExNi4xLTExNi4xek00MzAuMyAyNTZjMCA5Mi42LTc1LjEgMTY3LjctMTY3LjcgMTY3LjdIODEuNnYtMzM1LjRoMTgxYzkyLjYgMCAxNjcuNyA3NS4xIDE2Ny43IDE2Ny43eiIvPjwvc3ZnPg=='
+          },
           'HBO': 'https://upload.wikimedia.org/wikipedia/commons/d/de/HBO_logo.svg',
           'Apple TV': 'https://upload.wikimedia.org/wikipedia/commons/2/28/Apple_TV_Plus_Logo.svg',
           'Apple TV+': 'https://upload.wikimedia.org/wikipedia/commons/2/28/Apple_TV_Plus_Logo.svg',
@@ -989,15 +992,26 @@
 
       getPlatformLogo(platform) {
         if (!platform) return null;
+        
         // Check for exact match
-        if (this.platformLogos[platform]) {
-          return this.platformLogos[platform];
+        const logo = this.platformLogos[platform];
+        if (logo) {
+          // If it's HBO Max, return the theme-appropriate version
+          if (typeof logo === 'object' && logo.light && logo.dark) {
+            return this.lightMode ? logo.light : logo.dark;
+          }
+          return logo;
         }
+        
         // Check for partial match (case insensitive)
         const platformLower = platform.toLowerCase();
-        for (const [key, logo] of Object.entries(this.platformLogos)) {
+        for (const [key, logoValue] of Object.entries(this.platformLogos)) {
           if (key.toLowerCase().includes(platformLower) || platformLower.includes(key.toLowerCase())) {
-            return logo;
+            // If it's HBO Max, return the theme-appropriate version
+            if (typeof logoValue === 'object' && logoValue.light && logoValue.dark) {
+              return this.lightMode ? logoValue.light : logoValue.dark;
+            }
+            return logoValue;
           }
         }
         return null;
@@ -1007,6 +1021,7 @@
         this.lightMode = !this.lightMode;
         localStorage.setItem('silverscreen-theme', this.lightMode ? 'light' : 'dark');
         this.applyTheme();
+        this.render(); // Re-render to update platform logos
       }
 
       applyTheme() {
@@ -1016,6 +1031,35 @@
         } else {
           document.body.style.background = '#0a0a0a';
           document.body.style.color = '#ffffff';
+        }
+      }
+
+      updateAutocompleteDropdown() {
+        const dropdown = document.getElementById('autocompleteDropdown');
+        if (dropdown) {
+          dropdown.className = `autocomplete-dropdown ${this.autocompleteResults.length > 0 ? 'active' : ''}`;
+          dropdown.innerHTML = this.autocompleteResults.map(result => `
+            <div class="autocomplete-item" data-title="${result.title}" data-year="${result.year}">
+              ${result.poster ? `<img src="${result.poster}" alt="${result.title}">` : '<div style="width: 30px; height: 45px; background: #2a2a2a; border-radius: 4px;"></div>'}
+              <div class="autocomplete-item-info">
+                <div class="autocomplete-item-title">${result.title}</div>
+                <div class="autocomplete-item-year">${result.year || 'Unknown'}</div>
+              </div>
+            </div>
+          `).join('');
+          
+          // Re-attach click handlers to the new items
+          dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+            item.addEventListener('click', () => {
+              const title = item.dataset.title;
+              const titleInput = document.getElementById('addTitle');
+              if (titleInput) {
+                titleInput.value = title;
+              }
+              this.autocompleteResults = [];
+              this.updateAutocompleteDropdown();
+            });
+          });
         }
       }
 
@@ -1673,7 +1717,7 @@
             // Debounce search
             this.searchTimeout = setTimeout(async () => {
               await this.autocompleteSearch(query);
-              this.render();
+              this.updateAutocompleteDropdown();
             }, 300);
           });
 
@@ -1681,23 +1725,10 @@
           addTitleInput.addEventListener('blur', () => {
             setTimeout(() => {
               this.autocompleteResults = [];
-              this.render();
+              this.updateAutocompleteDropdown();
             }, 200);
           });
         }
-
-        // Autocomplete item selection
-        document.querySelectorAll('.autocomplete-item').forEach(item => {
-          item.addEventListener('click', () => {
-            const title = item.dataset.title;
-            const titleInput = document.getElementById('addTitle');
-            if (titleInput) {
-              titleInput.value = title;
-            }
-            this.autocompleteResults = [];
-            this.render();
-          });
-        });
 
         // Cancel add
         const cancelAdd = document.getElementById('cancelAdd');
