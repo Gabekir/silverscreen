@@ -517,27 +517,32 @@
         localStorage.setItem('tmdb-api-key', key);
       }
 
-      async searchTMDB(title, year) {
+      async searchTMDB(title) {
         const apiKey = this.getTMDBKey();
         if (!apiKey) {
-          return null;
+          return { poster: null, year: null };
         }
         
         try {
           const response = await fetch(
-            `https://api.themoviedb.org/3/search/tv?api_key=${apiKey}&query=${encodeURIComponent(title)}&first_air_date_year=${year || ''}`
+            `https://api.themoviedb.org/3/search/tv?api_key=${apiKey}&query=${encodeURIComponent(title)}`
           );
           const data = await response.json();
           
           if (data.results && data.results.length > 0) {
-            return data.results[0].poster_path 
-              ? `https://image.tmdb.org/t/p/w500${data.results[0].poster_path}`
+            const show = data.results[0];
+            const poster = show.poster_path 
+              ? `https://image.tmdb.org/t/p/w500${show.poster_path}`
               : null;
+            const year = show.first_air_date 
+              ? show.first_air_date.split('-')[0]
+              : null;
+            return { poster, year };
           }
         } catch (error) {
           console.error('TMDB search error:', error);
         }
-        return null;
+        return { poster: null, year: null };
       }
 
       loadShows() {
@@ -658,8 +663,10 @@
 
       async loadPosters() {
         for (let show of this.shows) {
-          if (!show.poster) {
-            show.poster = await this.searchTMDB(show.title, show.year);
+          if (!show.poster || !show.year) {
+            const data = await this.searchTMDB(show.title);
+            if (data.poster) show.poster = data.poster;
+            if (data.year) show.year = data.year;
           }
         }
         this.saveShows();
@@ -767,6 +774,17 @@
                 <div class="button-row">
                   <button class="save-button" id="saveSettings">Save Settings</button>
                 </div>
+                
+                <div class="info-box" style="margin-top: 20px;">
+                  <div class="info-box-title">🔄 Refresh All Posters & Years</div>
+                  <div class="info-box-text">
+                    Click below to re-fetch all poster images and debut years from TMDB. This will update any incorrect years in your existing shows.
+                  </div>
+                </div>
+                <div class="button-row">
+                  <button class="edit-button" id="refreshPosters">Refresh All Data</button>
+                </div>
+
                 <button class="close-button" id="closeSettings">Close</button>
               </div>
             </div>
@@ -910,14 +928,16 @@
                     <div class="form-group">
                       <label class="form-label">Title</label>
                       <input type="text" class="form-input" id="editTitle" value="${this.selectedShow.title}">
+                      <div class="form-hint">Changing the title will auto-fetch the debut year from TMDB</div>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Debut Year (Auto-fetched)</label>
+                      <input type="text" class="form-input" id="editYear" value="${this.selectedShow.year || 'Unknown'}" disabled style="opacity: 0.6;">
+                      <div class="form-hint">This is automatically set based on when the show first aired</div>
                     </div>
                     <div class="form-group">
                       <label class="form-label">Season</label>
                       <input type="text" class="form-input" id="editSeason" value="${this.selectedShow.season}">
-                    </div>
-                    <div class="form-group">
-                      <label class="form-label">Year</label>
-                      <input type="text" class="form-input" id="editYear" value="${this.selectedShow.year}">
                     </div>
                     <div class="form-group">
                       <label class="form-label">Genre</label>
@@ -973,13 +993,35 @@
             const apiKey = document.getElementById('apiKeyInput').value.trim();
             this.setTMDBKey(apiKey);
             
-            if (apiKey) {
-              // Reload posters with new key
-              await this.loadPosters();
-            }
-            
             this.showingSettings = false;
             this.render();
+          });
+        }
+
+        // Refresh all posters
+        const refreshPosters = document.getElementById('refreshPosters');
+        if (refreshPosters) {
+          refreshPosters.addEventListener('click', async () => {
+            if (!this.getTMDBKey()) {
+              alert('Please add a TMDB API key first!');
+              return;
+            }
+            
+            if (confirm('This will refresh all poster images and debut years from TMDB. Continue?')) {
+              refreshPosters.textContent = 'Refreshing...';
+              refreshPosters.disabled = true;
+              
+              // Force refresh all shows
+              for (let show of this.shows) {
+                const data = await this.searchTMDB(show.title);
+                if (data.poster) show.poster = data.poster;
+                if (data.year) show.year = data.year;
+              }
+              
+              this.saveShows();
+              this.showingSettings = false;
+              this.render();
+            }
           });
         }
 
@@ -1067,10 +1109,10 @@
         const saveBtn = document.getElementById('saveButton');
         if (saveBtn) {
           saveBtn.addEventListener('click', async () => {
+            const newTitle = document.getElementById('editTitle').value;
             const updates = {
-              title: document.getElementById('editTitle').value,
+              title: newTitle,
               season: document.getElementById('editSeason').value,
-              year: document.getElementById('editYear').value,
               genre: document.getElementById('editGenre').value,
               platform: document.getElementById('editPlatform').value,
               status: document.getElementById('editStatus').value,
@@ -1078,9 +1120,11 @@
               dateCompleted: document.getElementById('editDateCompleted').value
             };
 
-            // If title or year changed, fetch new poster
-            if (updates.title !== this.selectedShow.title || updates.year !== this.selectedShow.year) {
-              updates.poster = await this.searchTMDB(updates.title, updates.year);
+            // If title changed, fetch new poster and year
+            if (newTitle !== this.selectedShow.title) {
+              const data = await this.searchTMDB(newTitle);
+              if (data.poster) updates.poster = data.poster;
+              if (data.year) updates.year = data.year;
             }
 
             this.updateShow(this.selectedShow.id, updates);
