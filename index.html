@@ -313,12 +313,27 @@
       color: #a1a1aa;
     }
 
+    .platform-badge {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(212, 175, 55, 0.15);
+      border: 1px solid rgba(212, 175, 55, 0.3);
+      border-radius: 6px;
+      padding: 3px 8px;
+      margin-left: 8px;
+      height: 24px;
+    }
+
     .platform-logo {
-      height: 16px;
+      height: 14px;
       width: auto;
-      vertical-align: middle;
-      margin-left: 5px;
-      opacity: 0.8;
+      max-width: 50px;
+      object-fit: contain;
+      filter: brightness(1.2);
+    }
+
+    .list-view .platform-badge {
+      margin-left: 12px;
     }
 
     .modal-overlay {
@@ -1027,7 +1042,10 @@
                       <span class="show-meta-text meta-season">S${show.season}</span>
                       <span class="show-meta-text meta-year"> • ${show.year}</span>
                       ${this.activeView === 'diary' && show.dateCompleted 
-                        ? `<span class="show-meta-text meta-date"> • ${this.formatDate(show.dateCompleted)}</span>${this.getPlatformLogo(show.platform) ? `<img src="${this.getPlatformLogo(show.platform)}" alt="${show.platform}" class="platform-logo">` : ''}` 
+                        ? `<span class="show-meta-text meta-date"> • ${this.formatDate(show.dateCompleted)}</span>` 
+                        : ''}
+                      ${this.activeView === 'diary' && this.getPlatformLogo(show.platform) 
+                        ? `<span class="platform-badge"><img src="${this.getPlatformLogo(show.platform)}" alt="${show.platform}" class="platform-logo"></span>` 
                         : ''}
                     </div>
                   </div>
