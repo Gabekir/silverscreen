@@ -504,6 +504,7 @@
         this.viewMode = 'grid'; // 'grid' or 'list'
         this.isEditing = false;
         this.showingSettings = false;
+        this.showingAddShow = false;
         this.loadShows();
         this.render();
       }
@@ -520,7 +521,7 @@
       async searchTMDB(title) {
         const apiKey = this.getTMDBKey();
         if (!apiKey) {
-          return { poster: null, year: null };
+          return { poster: null, year: null, genres: null };
         }
         
         try {
@@ -537,12 +538,37 @@
             const year = show.first_air_date 
               ? show.first_air_date.split('-')[0]
               : null;
-            return { poster, year };
+            
+            // Get genre names
+            const genreMap = {
+              10759: 'Action & Adventure',
+              16: 'Animation',
+              35: 'Comedy',
+              80: 'Crime',
+              99: 'Documentary',
+              18: 'Drama',
+              10751: 'Family',
+              10762: 'Kids',
+              9648: 'Mystery',
+              10763: 'News',
+              10764: 'Reality',
+              10765: 'Sci-Fi & Fantasy',
+              10766: 'Soap',
+              10767: 'Talk',
+              10768: 'War & Politics',
+              37: 'Western'
+            };
+            
+            const genres = show.genre_ids && show.genre_ids.length > 0
+              ? show.genre_ids.map(id => genreMap[id]).filter(Boolean).join(', ')
+              : null;
+            
+            return { poster, year, genres };
           }
         } catch (error) {
           console.error('TMDB search error:', error);
         }
-        return { poster: null, year: null };
+        return { poster: null, year: null, genres: null };
       }
 
       loadShows() {
@@ -667,6 +693,7 @@
             const data = await this.searchTMDB(show.title);
             if (data.poster) show.poster = data.poster;
             if (data.year) show.year = data.year;
+            if (data.genres && !show.genre) show.genre = data.genres;
           }
         }
         this.saveShows();
@@ -733,6 +760,26 @@
         }
       }
 
+      async addShow(showData) {
+        const newShow = {
+          id: Date.now().toString(),
+          title: showData.title,
+          season: showData.season,
+          year: showData.year,
+          genre: showData.genre || '',
+          platform: showData.platform || '',
+          rating: 0,
+          status: showData.status || 'watching',
+          dateCompleted: showData.dateCompleted || '',
+          poster: showData.poster || null
+        };
+
+        this.shows.unshift(newShow); // Add to beginning of array
+        this.saveShows();
+        this.showingAddShow = false;
+        this.render();
+      }
+
       renderSettings() {
         return `
           <div class="modal-overlay active" id="settingsModal">
@@ -786,6 +833,55 @@
                 </div>
 
                 <button class="close-button" id="closeSettings">Close</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      renderAddShow() {
+        return `
+          <div class="modal-overlay active" id="addShowModal">
+            <div class="modal-content">
+              <div class="modal-body">
+                <div class="modal-title">+ Log Show</div>
+                
+                <div class="info-box">
+                  <div class="info-box-title">💡 Quick Add</div>
+                  <div class="info-box-text">
+                    Just enter the show title and season number. We'll automatically fetch the poster, debut year, and genre from TMDB!
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Title *</label>
+                  <input type="text" class="form-input" id="addTitle" placeholder="e.g., Breaking Bad">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Season *</label>
+                  <input type="text" class="form-input" id="addSeason" placeholder="e.g., 2" value="1">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Platform (Optional)</label>
+                  <input type="text" class="form-input" id="addPlatform" placeholder="e.g., Netflix">
+                  <div class="form-hint">Leave blank if unknown</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Status</label>
+                  <select class="form-select" id="addStatus">
+                    <option value="watching">Watching</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
+                <div class="form-group" id="addDateCompletedGroup" style="display: none;">
+                  <label class="form-label">Date Completed</label>
+                  <input type="date" class="form-input" id="addDateCompleted">
+                </div>
+
+                <div class="button-row">
+                  <button class="save-button" id="addShowButton">Add Show</button>
+                  <button class="cancel-button" id="cancelAdd">Cancel</button>
+                </div>
               </div>
             </div>
           </div>
@@ -893,8 +989,9 @@
           </div>
 
           ${this.showingSettings ? this.renderSettings() : ''}
+          ${this.showingAddShow ? this.renderAddShow() : ''}
 
-          <div class="modal-overlay ${this.selectedShow && !this.showingSettings ? 'active' : ''}" id="modal">
+          <div class="modal-overlay ${this.selectedShow && !this.showingSettings && !this.showingAddShow ? 'active' : ''}" id="modal">
             ${this.selectedShow ? `
               <div class="modal-content">
                 <div class="poster-container">
@@ -1016,6 +1113,7 @@
                 const data = await this.searchTMDB(show.title);
                 if (data.poster) show.poster = data.poster;
                 if (data.year) show.year = data.year;
+                if (data.genres) show.genre = data.genres;
               }
               
               this.saveShows();
@@ -1084,7 +1182,8 @@
         const logBtn = document.getElementById('logButton');
         if (logBtn) {
           logBtn.addEventListener('click', () => {
-            alert('Add Show feature coming soon! You can edit existing shows for now.');
+            this.showingAddShow = true;
+            this.render();
           });
         }
 
@@ -1120,11 +1219,12 @@
               dateCompleted: document.getElementById('editDateCompleted').value
             };
 
-            // If title changed, fetch new poster and year
+            // If title changed, fetch new poster, year, and genres
             if (newTitle !== this.selectedShow.title) {
               const data = await this.searchTMDB(newTitle);
               if (data.poster) updates.poster = data.poster;
               if (data.year) updates.year = data.year;
+              if (data.genres && !updates.genre) updates.genre = data.genres;
             }
 
             this.updateShow(this.selectedShow.id, updates);
@@ -1170,6 +1270,85 @@
         if (statusSelect) {
           statusSelect.addEventListener('change', (e) => {
             const dateGroup = document.getElementById('dateCompletedGroup');
+            if (dateGroup) {
+              dateGroup.style.display = e.target.value === 'completed' ? 'block' : 'none';
+            }
+          });
+        }
+
+        // Add show button
+        const addShowButton = document.getElementById('addShowButton');
+        if (addShowButton) {
+          addShowButton.addEventListener('click', async () => {
+            const title = document.getElementById('addTitle').value.trim();
+            const season = document.getElementById('addSeason').value.trim();
+            
+            if (!title) {
+              alert('Please enter a show title');
+              return;
+            }
+            
+            if (!season) {
+              alert('Please enter a season number');
+              return;
+            }
+
+            addShowButton.textContent = 'Fetching from TMDB...';
+            addShowButton.disabled = true;
+
+            // Fetch data from TMDB
+            const data = await this.searchTMDB(title);
+
+            if (!data.poster && !data.year && !data.genres) {
+              const retry = confirm('Could not find this show on TMDB. This might mean:\n\n1. The show name is spelled differently\n2. The show is very new and not in TMDB yet\n3. No internet connection\n\nAdd it anyway without poster/genre?');
+              
+              if (!retry) {
+                addShowButton.textContent = 'Add Show';
+                addShowButton.disabled = false;
+                return;
+              }
+            }
+
+            const showData = {
+              title: title,
+              season: season,
+              year: data.year || new Date().getFullYear().toString(),
+              genre: data.genres || '',
+              platform: document.getElementById('addPlatform').value.trim(),
+              status: document.getElementById('addStatus').value,
+              dateCompleted: document.getElementById('addDateCompleted').value,
+              poster: data.poster
+            };
+
+            await this.addShow(showData);
+          });
+        }
+
+        // Cancel add
+        const cancelAdd = document.getElementById('cancelAdd');
+        if (cancelAdd) {
+          cancelAdd.addEventListener('click', () => {
+            this.showingAddShow = false;
+            this.render();
+          });
+        }
+
+        // Add show modal overlay
+        const addShowModal = document.getElementById('addShowModal');
+        if (addShowModal) {
+          addShowModal.addEventListener('click', (e) => {
+            if (e.target === addShowModal) {
+              this.showingAddShow = false;
+              this.render();
+            }
+          });
+        }
+
+        // Add status change handler for date completed field in add modal
+        const addStatus = document.getElementById('addStatus');
+        if (addStatus) {
+          addStatus.addEventListener('change', (e) => {
+            const dateGroup = document.getElementById('addDateCompletedGroup');
             if (dateGroup) {
               dateGroup.style.display = e.target.value === 'completed' ? 'block' : 'none';
             }
