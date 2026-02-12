@@ -39,6 +39,23 @@
     .header {
       padding: 20px;
       padding-top: max(20px, env(safe-area-inset-top));
+      position: relative;
+    }
+
+    .settings-icon {
+      position: absolute;
+      top: max(20px, env(safe-area-inset-top));
+      right: 20px;
+      background: transparent;
+      border: none;
+      color: #a1a1aa;
+      cursor: pointer;
+      padding: 8px;
+    }
+
+    .settings-icon svg {
+      width: 24px;
+      height: 24px;
     }
 
     .title {
@@ -362,7 +379,7 @@
       letter-spacing: 0.5px;
     }
 
-    .form-input, .form-select {
+    .form-input, .form-select, .form-textarea {
       width: 100%;
       background: #0a0a0a;
       color: #fff;
@@ -370,11 +387,23 @@
       padding: 12px;
       border-radius: 8px;
       font-size: 16px;
+      font-family: inherit;
     }
 
-    .form-input:focus, .form-select:focus {
+    .form-textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
       outline: none;
       border-color: #d4af37;
+    }
+
+    .form-hint {
+      font-size: 12px;
+      color: #a1a1aa;
+      margin-top: 5px;
     }
 
     .button-row {
@@ -416,6 +445,31 @@
       cursor: pointer;
     }
 
+    .info-box {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+
+    .info-box-title {
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #d4af37;
+    }
+
+    .info-box-text {
+      font-size: 14px;
+      line-height: 1.5;
+      color: #a1a1aa;
+    }
+
+    .info-box a {
+      color: #d4af37;
+      text-decoration: none;
+    }
+
     @media (max-width: 480px) {
       .title {
         font-size: 36px;
@@ -431,11 +485,6 @@
   <div id="root"></div>
 
   <script>
-    // TMDB API Configuration
-    const TMDB_API_KEY = 'YOUR_TMDB_API_KEY_HERE'; // Users will need to get their own key
-    const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
-    const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
-
     // Service Worker Registration
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -454,24 +503,35 @@
         this.selectedShow = null;
         this.viewMode = 'grid'; // 'grid' or 'list'
         this.isEditing = false;
+        this.showingSettings = false;
         this.loadShows();
         this.render();
       }
 
+      getTMDBKey() {
+        // Built-in API key - can be overridden in settings
+        return localStorage.getItem('tmdb-api-key') || 'cedb02738b9dc3d0e43d2e73a614fd24';
+      }
+
+      setTMDBKey(key) {
+        localStorage.setItem('tmdb-api-key', key);
+      }
+
       async searchTMDB(title, year) {
-        if (TMDB_API_KEY === 'YOUR_TMDB_API_KEY_HERE') {
+        const apiKey = this.getTMDBKey();
+        if (!apiKey) {
           return null;
         }
         
         try {
           const response = await fetch(
-            `${TMDB_BASE_URL}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&first_air_date_year=${year || ''}`
+            `https://api.themoviedb.org/3/search/tv?api_key=${apiKey}&query=${encodeURIComponent(title)}&first_air_date_year=${year || ''}`
           );
           const data = await response.json();
           
           if (data.results && data.results.length > 0) {
             return data.results[0].poster_path 
-              ? `${TMDB_IMAGE_BASE}${data.results[0].poster_path}`
+              ? `https://image.tmdb.org/t/p/w500${data.results[0].poster_path}`
               : null;
           }
         } catch (error) {
@@ -666,6 +726,54 @@
         }
       }
 
+      renderSettings() {
+        return `
+          <div class="modal-overlay active" id="settingsModal">
+            <div class="modal-content">
+              <div class="modal-body">
+                <div class="modal-title">Settings</div>
+                
+                <div class="info-box">
+                  <div class="info-box-title">🖼️ Poster Images</div>
+                  <div class="info-box-text">
+                    To show poster images for your TV shows, you need a free API key from The Movie Database (TMDB).
+                    <br><br>
+                    <strong>How to get your key:</strong>
+                    <ol style="margin-left: 20px; margin-top: 10px;">
+                      <li>Go to <a href="https://www.themoviedb.org/signup" target="_blank">themoviedb.org/signup</a></li>
+                      <li>Create a free account</li>
+                      <li>Go to Settings → API</li>
+                      <li>Click "Request an API Key" → Choose "Developer"</li>
+                      <li>Copy your API Key (v3 auth)</li>
+                      <li>Paste it below</li>
+                    </ol>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">TMDB API Key</label>
+                  <input 
+                    type="text" 
+                    class="form-input" 
+                    id="apiKeyInput" 
+                    value="${this.getTMDBKey()}"
+                    placeholder="Enter your TMDB API key here"
+                  >
+                  <div class="form-hint">
+                    ${this.getTMDBKey() ? '✅ API key saved' : '⚠️ No API key - posters will show as placeholders'}
+                  </div>
+                </div>
+
+                <div class="button-row">
+                  <button class="save-button" id="saveSettings">Save Settings</button>
+                </div>
+                <button class="close-button" id="closeSettings">Close</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
       render() {
         const stats = this.getStats();
         const filteredShows = this.getFilteredShows();
@@ -673,6 +781,13 @@
         document.getElementById('root').innerHTML = `
           <div class="container">
             <div class="header">
+              <button class="settings-icon" id="settingsBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M12 1v6m0 6v6m0-6h6m-6 0H6m6-6a9 9 0 100 18 9 9 0 000-18z"/>
+                  <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+                </svg>
+              </button>
               <div class="title">Silverscreen</div>
               <div class="subtitle">Your television companion</div>
               <button class="log-button" id="logButton">+ Log Show</button>
@@ -759,7 +874,9 @@
             </div>
           </div>
 
-          <div class="modal-overlay ${this.selectedShow ? 'active' : ''}" id="modal">
+          ${this.showingSettings ? this.renderSettings() : ''}
+
+          <div class="modal-overlay ${this.selectedShow && !this.showingSettings ? 'active' : ''}" id="modal">
             ${this.selectedShow ? `
               <div class="modal-content">
                 <div class="poster-container">
@@ -840,6 +957,52 @@
       }
 
       attachEventListeners() {
+        // Settings button
+        const settingsBtn = document.getElementById('settingsBtn');
+        if (settingsBtn) {
+          settingsBtn.addEventListener('click', () => {
+            this.showingSettings = true;
+            this.render();
+          });
+        }
+
+        // Save settings
+        const saveSettings = document.getElementById('saveSettings');
+        if (saveSettings) {
+          saveSettings.addEventListener('click', async () => {
+            const apiKey = document.getElementById('apiKeyInput').value.trim();
+            this.setTMDBKey(apiKey);
+            
+            if (apiKey) {
+              // Reload posters with new key
+              await this.loadPosters();
+            }
+            
+            this.showingSettings = false;
+            this.render();
+          });
+        }
+
+        // Close settings
+        const closeSettings = document.getElementById('closeSettings');
+        if (closeSettings) {
+          closeSettings.addEventListener('click', () => {
+            this.showingSettings = false;
+            this.render();
+          });
+        }
+
+        // Settings modal overlay
+        const settingsModal = document.getElementById('settingsModal');
+        if (settingsModal) {
+          settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+              this.showingSettings = false;
+              this.render();
+            }
+          });
+        }
+
         // Search
         const searchInput = document.getElementById('searchInput');
         if (searchInput) {
